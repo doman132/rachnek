@@ -757,7 +757,6 @@
 
         /* ===== MOBILE FOOTER ===== */
         .mobile-footer {
-            display: none;
             position: fixed;
             bottom: 0;
             left: 0;
@@ -767,6 +766,9 @@
             z-index: 999;
             padding: 12px;
             box-shadow: 0 -5px 15px var(--shadow-color);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .footer-header {
@@ -852,19 +854,20 @@
         /* POKAŻ FOOTER NA MOBILACH */
         @media (max-width: 768px) {
             .mobile-footer {
-                display: block;
+                display: block !important;
+                visibility: visible;
             }
             
             body {
-                padding-bottom: 70px; /* Miejsce na footer */
+                padding-bottom: 80px;
             }
 
             .language-selector {
-                display: none;
+                display: none !important;
             }
 
             .theme-toggle {
-                display: none;
+                display: none !important;
             }
 
             .container {
