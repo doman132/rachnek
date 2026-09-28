@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Wojna Epok</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+  /* Layout: pole bitwy na całą szerokość, pod nim pulpit dowódcy w trzech grupach: jednostki, wieże, moce. */
+  :root {
+    --bg: #1a1714;
+    --panel: #25211c;
+    --panel-2: #302a23;
+    --line: #463d33;
+    --fg: #f1e9dc;
+    --muted: #b3a794;
+    --accent: #f08a3c;      /* kolor epoki; zmienia się przy ewolucji */
+    --blue: #4d8fd6;
+    --red: #d6504d;
+    --good: #83c26a;
+    --font-display: "Bungee", Impact, "Arial Black", sans-serif;
+    --font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+    --font-cond: "Barlow Condensed", "Arial Narrow", sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; padding: 12px 16px; -webkit-tap-highlight-color: transparent; }
+  .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+
+  header.hud { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .brand { font-family: var(--font-display); font-size: 26px; margin: 0; line-height: 1; color: var(--accent); letter-spacing: .02em; }
+  .age-name { font-family: var(--font-cond); font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  .stat { display: flex; align-items: baseline; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .stat .v { font-weight: 700; font-size: 18px; }
+  .stat.gold .v { color: #f2c14e; }
+  .xp { display: flex; align-items: center; gap: 8px; min-width: 200px; flex: 1 1 200px; max-width: 360px; }
+  .xp .bar { flex: 1; height: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .xp .fill { height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  .xp .k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .ctl { display: flex; gap: 8px; margin-left: auto; }
+
+  button { font: inherit; font-weight: 600; color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1a120a; }
+  button.on { border-color: var(--accent); color: var(--accent); }
+
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #8fb6d6; }
+  canvas#field { display: block; width: 100%; height: auto; aspect-ratio: 1000 / 440; max-width: 100%; touch-action: manipulation; }
+  .toast { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); background: rgba(26,23,20,.9); border: 1px solid var(--accent); padding: 6px 14px; border-radius: 6px; font-weight: 700; pointer-events: none; transition: opacity .3s; white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }
+  .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20,17,14,.72); padding: 12px; overflow-y: auto; }
+  @media (max-width: 700px) { .overlay { position: static; background: var(--panel-2); } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; max-width: 560px; width: 100%; display: flex; flex-direction: column; gap: 12px; }
+  .card h2 { font-family: var(--font-display); font-size: 30px; margin: 0; color: var(--accent); line-height: 1.05; font-weight: 400; text-wrap: balance; }
+  .card p { margin: 0; color: var(--muted); line-height: 1.45; }
+  .ages-line { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ages-line span { font-family: var(--font-cond); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; font-size: 13px; padding: 2px 8px; border-radius: 4px; color: #1a120a; }
+  .choices { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+  @media (max-width: 520px) { .choices { grid-template-columns: minmax(0,1fr); } }
+  .choices button { display: flex; flex-direction: column; gap: 2px; text-align: left; }
+  .choices small { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .deck { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; }
+  @media (max-width: 900px) { .deck { grid-template-columns: minmax(0,1fr); } }
+  .group { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .group h3 { margin: 0; font-family: var(--font-cond); font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 6px; }
+  .ubtn { display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 2px 8px; align-items: center; text-align: left; padding: 6px 8px; }
+  .ubtn canvas { width: 40px; height: 40px; grid-row: span 3; }
+  .ubtn .nm { font-weight: 700; font-size: 14px; line-height: 1.1; }
+  .ubtn .cost { color: #f2c14e; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 13px; display: flex; justify-content: space-between; gap: 4px; }
+  .ubtn .sub { font-size: 11px; color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .ubtn.poor .cost { color: var(--red); }
+  .queue { display: flex; gap: 4px; align-items: center; min-height: 22px; font-size: 12px; color: var(--muted); }
+  .qslot { width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel-2); position: relative; overflow: hidden; }
+  .qslot.full { background: #3b342b; border-color: var(--accent); }
+  .qslot .p { position: absolute; left: 0; bottom: 0; width: 100%; background: var(--accent); opacity: .7; }
+  .power { position: relative; overflow: hidden; }
+  .power .cd { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); }
+  .help { font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5; }
+  kbd { font-family: inherit; font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: var(--fg); font-weight: 600; }
+  @media (prefers-reduced-motion: reduce) { .toast, .xp .fill { transition: none; } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="hud">
+    <h1 class="brand">Wojna Epok</h1>
+    <span class="age-name" id="ageName">Epoka Kamienia</span>
+    <div class="stat gold"><span class="k">Złoto</span><span class="v" id="sGold">0</span></div>
+    <div class="xp"><span class="k" id="xpLabel">Doświadczenie</span><div class="bar"><div class="fill" id="xpFill"></div></div></div>
+    <div class="ctl">
+      <button id="btnSpeed" type="button">Tempo ×1</button>
+      <button id="btnPause" type="button">Pauza <kbd>P</kbd></button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <canvas id="field" width="1000" height="440" aria-label="Pole bitwy"></canvas>
+    <div class="toast" id="toast" style="opacity:0"></div>
+    <div class="overlay" id="overlay">
+      <div class="card" id="startCard">
+        <h2>Wojna Epok</h2>
+        <p>Twoja baza stoi po lewej, wroga po prawej. Szkol wojowników, którzy sami ruszą na wroga, stawiaj wieże na murach i zbieraj doświadczenie za każdego pokonanego przeciwnika. Gdy pasek doświadczenia się zapełni, twoja cywilizacja przechodzi do następnej epoki: dostajesz nowe jednostki, wieże i mocniejszą bazę. Zburz bazę wroga, zanim on zburzy twoją.</p>
+        <div class="ages-line" id="agesLine"></div>
+        <div class="choices" id="diffs"></div>
+        <div class="row"><button class="primary" id="btnStart" type="button">Do boju</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="deck">
+    <section class="group">
+      <h3><span>Jednostki</span><span id="queueInfo"></span></h3>
+      <div class="btns" id="unitBtns"></div>
+      <div class="queue" id="queue"></div>
+    </section>
+    <section class="group">
+      <h3><span>Wieże obronne</span><span id="slotInfo"></span></h3>
+      <div class="btns" id="turretBtns"></div>
+      <div class="row">
+        <button type="button" id="btnSlot">Nowe miejsce</button>
+        <button type="button" id="btnSell">Sprzedaj wieżę</button>
+      </div>
+    </section>
+    <section class="group">
+      <h3><span>Moce</span></h3>
+      <button type="button" class="power" id="btnSpecial"><span id="specialName">Deszcz meteorów</span> <kbd>Q</kbd><span class="cd" id="specialCd"></span></button>
+      <button type="button" class="primary" id="btnEvolve">Ewolucja <kbd>E</kbd></button>
+      <p class="help"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> szkolenie (<kbd>6</kbd> Tytan w ostatniej epoce) · <kbd>4</kbd> <kbd>5</kbd> wieże · <kbd>Q</kbd> moc specjalna · <kbd>E</kbd> ewolucja · <kbd>P</kbd> pauza · <kbd>F</kbd> tempo</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const W = 1000, H = 440, GROUND = 372;
+const $ = id => document.getElementById(id);
+
+// ============ Epoki ============
+const P = [1, 2.3, 5.2, 11.5, 25];     // siła (życie i obrażenia)
+const C = [1, 2.2, 4.7, 10, 21];       // koszt
+const XP_NEXT = [1400, 5000, 15000, 42000];
+const BASE_HP = [500, 900, 1500, 2400, 3800];
+const INCOME = [2, 3.5, 6, 10, 16];
+
+const AGES = [
+  { name: 'Epoka Kamienia', accent: '#f08a3c', sky: ['#f4b26b', '#f8dfb2'], hills: ['#b78a5a', '#9c7248'], ground: '#7a5b3a', top: '#6f8f3a',
+    units: ['Pałkarz', 'Procarz', 'Jeździec dinozaura'], turrets: ['Miotacz kamieni', 'Katapulta'], special: 'Deszcz meteorów' },
+  { name: 'Średniowiecze', accent: '#d9b23a', sky: ['#7fa8d1', '#d4e4f0'], hills: ['#6d8f5a', '#57784a'], ground: '#6b5a42', top: '#5f8a3a',
+    units: ['Miecznik', 'Łucznik', 'Rycerz'], turrets: ['Kusza wałowa', 'Trebusz'], special: 'Deszcz strzał' },
+  { name: 'Epoka Prochu', accent: '#5fb0d9', sky: ['#9bb7c9', '#e6ecef'], hills: ['#7a8c6a', '#65775a'], ground: '#6a5a4a', top: '#708a4a',
+    units: ['Szermierz', 'Muszkieter', 'Armata polowa'], turrets: ['Działo', 'Moździerz'], special: 'Salwa artylerii' },
+  { name: 'Współczesność', accent: '#8bc34a', sky: ['#8a9aa6', '#cfd6db'], hills: ['#6c7470', '#565e5a'], ground: '#5a5650', top: '#5d6b4a',
+    units: ['Komandos', 'Strzelec', 'Czołg'], turrets: ['Karabin maszynowy', 'Wyrzutnia rakiet'], special: 'Nalot bombowy' },
+  { name: 'Przyszłość', accent: '#c56cf0', sky: ['#1b1540', '#4a2a6a'], hills: ['#2c2350', '#221a40'], ground: '#2a2638', top: '#4a3f7a',
+    units: ['Cyborg', 'Blaster', 'Mech bojowy'], turrets: ['Laser', 'Działo plazmowe'], special: 'Laser orbitalny' },
+];
+
+const ROLES = [
+  { role: 'melee', cost: 15, hp: 55, dmg: 14, range: 20, rate: 1.0, speed: 40, train: 1.0, w: 16 },
+  { role: 'ranged', cost: 25, hp: 40, dmg: 9, range: 140, rate: 0.9, speed: 38, train: 1.3, w: 16 },
+  { role: 'heavy', cost: 100, hp: 280, dmg: 38, range: 24, rate: 0.7, speed: 30, train: 3.0, w: 36 },
+];
+// Superjednostka dostępna tylko w ostatniej epoce
+const TITAN = { role: 'titan', name: 'Tytan', cost: 1600, hp: 9000, dmg: 700, range: 30, rate: 0.8, speed: 26, train: 6, w: 40 };
+function unitCount(age) { return age === AGES.length - 1 ? 4 : 3; }
+function unitDef(age, ri) {
+  if (ri === 3) return { ...TITAN, age, ri };
+  const r = ROLES[ri];
+  const d = { age, ri, role: r.role, name: AGES[age].units[ri], cost: Math.round(r.cost * C[age]), hp: Math.round(r.hp * P[age]),
+    dmg: r.dmg * P[age], range: r.range, rate: r.rate, speed: r.speed + age * 2, train: r.train, w: r.w };
+  if (ri === 2 && age >= 2) { d.range = 150; d.dmg *= 0.85; }  // od epoki prochu ciężkie jednostki strzelają z daleka
+  if (ri === 0 && age === 3) d.range = 60;                      // komandos ze strzelbą
+  return d;
+}
+const TURRETS = [
+  { cost: 100, dmg: 12, rate: 1.0, range: 250, splash: 0 },
+  { cost: 250, dmg: 30, rate: 0.45, range: 290, splash: 42 },
+];
+function turretDef(age, ti) {
+  const t = TURRETS[ti];
+  return { age, ti, name: AGES[age].turrets[ti], cost: Math.round(t.cost * C[age]), dmg: t.dmg * P[age], rate: t.rate, range: t.range, splash: t.splash };
+}
+const SLOT_COST = [0, 400, 1400];
+const SPECIAL_CD = 50;
+
+const DIFFS = [
+  { id: 'easy', name: 'Łatwy', desc: 'Wróg zarabia mniej', mult: 0.75, react: 0.7 },
+  { id: 'normal', name: 'Normalny', desc: 'Wyrównana walka', mult: 1.0, react: 1.0 },
+  { id: 'hard', name: 'Trudny', desc: 'Wróg zarabia 30% więcej', mult: 1.3, react: 1.3 },
+];
+
+// ============ Stan ============
+const canvas = $('field'), ctx = canvas.getContext('2d');
+let dpr = 1, S = null, diffIdx = 1, speed = 1, paused = false, running = false;
+
+function newSide(id, ai) {
+  return { id, ai, dir: id === 0 ? 1 : -1, gold: 175, xp: 0, age: 0, baseHp: BASE_HP[0], baseMax: BASE_HP[0],
+    units: [], queue: [], trainT: 0, turrets: [null, null, null], slots: 1, specialCd: 12, kills: 0, aiT: 0, flash: 0 };
+}
+function newGame(playerAi = false) {
+  S = { t: 0, over: false, winner: null, diff: DIFFS[diffIdx], sides: [newSide(0, playerAi), newSide(1, true)],
+        shots: [], drops: [], fx: [], texts: [], nextId: 1, shake: 0 };
+  paused = false;
+  applyAccent();
+  buildButtons();
+  refresh();
+}
+const other = s => S.sides[1 - s.id];
+const baseFront = s => s.id === 0 ? 96 : W - 96;
+const spawnX = s => s.id === 0 ? 74 : W - 74;
+const earnMult = s => (s.ai && s.id === 1 ? S.diff.mult : 1);
+
+// ============ Akcje ============
+function train(s, ri) {
+  const d = unitDef(s.age, ri);
+  if (s.queue.length >= 5) { if (!s.ai) toast('Kolejka jest pełna'); return false; }
+  if (s.gold < d.cost) { if (!s.ai) toast('Za mało złota'); return false; }
+  s.gold -= d.cost;
+  s.queue.push(d);
+  if (s.queue.length === 1) s.trainT = d.train;
+  refreshSoon();
+  return true;
+}
+function buyTurret(s, ti) {
+  const d = turretDef(s.age, ti);
+  const slot = s.turrets.findIndex((t, i) => i < s.slots && !t);
+  if (slot < 0) { if (!s.ai) toast('Brak wolnego miejsca na wieżę'); return false; }
+  if (s.gold < d.cost) { if (!s.ai) toast('Za mało złota'); return false; }
+  s.gold -= d.cost;
+  s.turrets[slot] = { ...d, cd: 0, angle: s.dir > 0 ? 0 : Math.PI };
+  refreshSoon();
+  return true;
+}
+function buySlot(s) {
+  if (s.slots >= 3) return false;
+  const c = SLOT_COST[s.slots];
+  if (s.gold < c) { if (!s.ai) toast('Za mało złota'); return false; }
+  s.gold -= c; s.slots++;
+  refreshSoon();
+  return true;
+}
+function sellTurret(s, idx) {
+  let i = idx;
+  if (i == null) {
+    let best = -1;
+    s.turrets.forEach((t, j) => { if (t && (best < 0 || t.age < s.turrets[best].age || (t.age === s.turrets[best].age && t.cost < s.turrets[best].cost))) best = j; });
+    i = best;
+  }
+  if (i < 0 || !s.turrets[i]) { if (!s.ai) toast('Nie masz wieży do sprzedania'); return false; }
+  const v = Math.floor(s.turrets[i].cost * 0.5);
+  s.gold += v; s.turrets[i] = null;
+  if (!s.ai) floatText(60, GROUND - 150, `+${v} zł`, '#f2c14e');
+  refreshSoon();
+  return true;
+}
+function canEvolve(s) { return s.age < AGES.length - 1 && s.xp >= XP_NEXT[s.age]; }
+function evolve(s) {
+  if (!canEvolve(s)) { if (!s.ai) toast(s.age >= AGES.length - 1 ? 'To już ostatnia epoka' : 'Za mało doświadczenia'); return false; }
+  s.xp -= XP_NEXT[s.age];
+  s.age++;
+  const add = BASE_HP[s.age] - s.baseMax;
+  s.baseMax = BASE_HP[s.age]; s.baseHp += add;
+  s.flash = 1;
+  if (!s.ai) { toast(`Nowa epoka: ${AGES[s.age].name}!`); applyAccent(); buildButtons(); }
+  else if (!S.sides[0].ai) toast(`Wróg wkroczył w epokę: ${AGES[s.age].name}`);
+  refreshSoon();
+  return true;
+}
+function special(s) {
+  if (s.specialCd > 0) { if (!s.ai) toast('Moc specjalna jeszcze się ładuje'); return false; }
+  s.specialCd = SPECIAL_CD;
+  const o = other(s);
+  const from = s.id === 0 ? baseFront(s) + 60 : baseFront(o) + 10;
+  const to = s.id === 0 ? baseFront(o) - 10 : baseFront(s) - 60;
+  const n = 16;
+  for (let i = 0; i < n; i++) {
+    const x = from + (to - from) * (i + Math.random()) / n;
+    S.drops.push({ side: s.id, age: s.age, x, y: -30 - Math.random() * 260, vy: 320 + Math.random() * 80, dmg: 110 * P[s.age], delay: s.age === 4 ? i * 0.08 : 0 });
+  }
+  if (!s.ai) toast(AGES[s.age].special + '!');
+  refreshSoon();
+  return true;
+}
+
+// ============ Walka ============
+function spawnUnit(s, d) {
+  const u = { id: S.nextId++, side: s.id, dir: s.dir, def: d, x: spawnX(s), hp: d.hp, maxHp: d.hp, cd: 0.3, walk: Math.random() * 6, atk: 0, hit: 0 };
+  s.units.push(u);
+}
+function killUnit(u, killer) {
+  u.dead = true;
+  const reward = Math.round(u.def.cost * 1.15 * earnMult(killer));
+  killer.gold += reward;
+  killer.xp += Math.round(u.def.cost * 2.4 * earnMult(killer));
+  killer.kills++;
+  if (killer.id === 0 && !killer.ai) floatText(u.x, GROUND - 46, `+${reward}`, '#f2c14e');
+  S.fx.push({ kind: 'corpse', x: u.x, dir: u.dir, def: u.def, side: u.side, t: 1.2, max: 1.2 });
+  for (let i = 0; i < 8; i++) S.fx.push({ kind: 'spark', x: u.x, y: GROUND - 16, vx: (Math.random() - 0.5) * 120, vy: -Math.random() * 120, t: 0.5, max: 0.5, color: '#a3322b' });
+}
+function hurtUnit(u, dmg, attackerSide) {
+  if (u.dead) return;
+  u.hp -= dmg; u.hit = 0.1;
+  if (u.hp <= 0) killUnit(u, S.sides[attackerSide]);
+}
+function hurtBase(s, dmg, attackerSide) {
+  if (S.over) return;
+  s.baseHp -= dmg;
+  const a = S.sides[attackerSide];
+  a.xp += dmg * 0.4 * earnMult(a);
+  if (s.baseHp <= 0) { s.baseHp = 0; endGame(attackerSide); }
+}
+
+function frontEnemy(u, enemies) {
+  let best = null, bd = Infinity;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const ahead = u.dir * (e.x - u.x);
+    if (ahead < -10) continue;
+    const dist = ahead - (u.def.w + e.def.w) / 2;
+    if (dist < bd) { bd = dist; best = e; }
+  }
+  return { e: best, dist: bd };
+}
+
+function update(dt) {
+  if (S.over) return;
+  S.t += dt;
+  if (S.shake > 0) S.shake -= dt;
+  for (const s of S.sides) {
+    s.gold += INCOME[s.age] * earnMult(s) * dt;
+    s.specialCd = Math.max(0, s.specialCd - dt);
+    if (s.flash > 0) s.flash -= dt;
+    if (s.queue.length) {
+      s.trainT -= dt;
+      if (s.trainT <= 0) {
+        const blocked = s.units.some(u => !u.dead && Math.abs(u.x - spawnX(s)) < 24);
+        if (!blocked) {
+          spawnUnit(s, s.queue.shift());
+          if (s.queue.length) s.trainT = s.queue[0].train;
+          refreshSoon();
+        }
+      }
+    }
+    if (s.ai) aiThink(s, dt);
+  }
+
+  for (const s of S.sides) {
+    const o = other(s);
+    const sorted = s.units.filter(u => !u.dead).sort((a, b) => s.dir * (b.x - a.x));
+    for (const u of sorted) {
+      u.walk += dt; if (u.hit > 0) u.hit -= dt; if (u.atk > 0) u.atk -= dt;
+      u.cd -= dt;
+      const fe = frontEnemy(u, o.units);
+      const baseDist = s.dir * (baseFront(o) - u.x) - u.def.w / 2;
+      let target = null, tdist = baseDist;
+      if (fe.e && fe.dist < baseDist) { target = fe.e; tdist = fe.dist; }
+      if (tdist <= u.def.range) {
+        if (u.cd <= 0) { attack(u, s, o, target); u.cd = 1 / u.def.rate; }
+        u.moving = false;
+        continue;
+      }
+      let step = u.def.speed * dt;
+      for (const f of sorted) {
+        if (f === u) continue;
+        const ahead = s.dir * (f.x - u.x);
+        if (ahead <= 0) continue;
+        step = Math.min(step, Math.max(0, ahead - (u.def.w + f.def.w) / 2 - 4));
+      }
+      step = Math.min(step, Math.max(0, tdist));
+      u.moving = step > 0.01;
+      u.x += s.dir * step;
+    }
+  }
+
+  for (const s of S.sides) {
+    const o = other(s);
+    s.turrets.forEach((t, i) => {
+      if (!t) return;
+      t.cd -= dt;
+      const pos = slotPos(s, i);
+      let tgt = null, bd = Infinity;
+      for (const e of o.units) {
+        if (e.dead) continue;
+        const d = s.dir * (e.x - pos.x);
+        if (d >= -20 && d <= t.range && d < bd) { bd = d; tgt = e; }
+      }
+      if (tgt) {
+        t.angle = Math.atan2(GROUND - 18 - pos.y, tgt.x - pos.x);
+        if (t.cd <= 0) {
+          t.cd = 1 / t.rate;
+          S.shots.push({ side: s.id, kind: shotKind(t.age, t.ti === 1 ? 'heavy' : 'turret'), x: pos.x, y: pos.y, target: tgt, tx: tgt.x, ty: GROUND - 18,
+                         speed: t.ti === 1 ? 360 : 560, dmg: t.dmg, splash: t.splash, age: t.age });
+        }
+      }
+    });
+  }
+
+  for (const p of S.shots) {
+    if (p.target && !p.target.dead) { p.tx = p.target.x; }
+    const dx = p.tx - p.x, dy = p.ty - p.y, dist = Math.hypot(dx, dy), step = p.speed * dt;
+    p.a = Math.atan2(dy, dx);
+    if (dist <= step + 3) {
+      p.done = true;
+      const o = S.sides[1 - p.side];
+      if (p.base) hurtBase(o, p.dmg, p.side);
+      else if (p.splash) {
+        for (const e of o.units) if (!e.dead && Math.abs(e.x - p.tx) <= p.splash) hurtUnit(e, p.dmg, p.side);
+        S.fx.push({ kind: 'boom', x: p.tx, y: GROUND - 10, r: p.splash, t: 0.35, max: 0.35 });
+      } else if (p.target && !p.target.dead) hurtUnit(p.target, p.dmg, p.side);
+    } else { p.x += dx / dist * step; p.y += dy / dist * step; }
+  }
+  S.shots = S.shots.filter(p => !p.done);
+
+  for (const d of S.drops) {
+    if (d.delay > 0) { d.delay -= dt; continue; }
+    d.y += d.vy * dt;
+    if (d.y >= GROUND - 4) {
+      d.done = true;
+      const o = S.sides[1 - d.side];
+      for (const e of o.units) if (!e.dead && Math.abs(e.x - d.x) < 30) hurtUnit(e, d.dmg, d.side);
+      S.fx.push({ kind: 'boom', x: d.x, y: GROUND - 6, r: 30, t: 0.4, max: 0.4 });
+      S.shake = 0.15;
+    }
+  }
+  S.drops = S.drops.filter(d => !d.done);
+
+  for (const s of S.sides) s.units = s.units.filter(u => !u.dead);
+  for (const f of S.fx) {
+    f.t -= dt;
+    if (f.kind === 'spark') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 300 * dt; }
+  }
+  S.fx = S.fx.filter(f => f.t > 0);
+  for (const t of S.texts) { t.t -= dt; t.y -= 24 * dt; }
+  S.texts = S.texts.filter(t => t.t > 0);
+}
+
+function shotKind(age, role) {
+  if (role === 'heavy') return ['boulder', 'boulder', 'cannonball', 'rocket', 'plasma'][age];
+  return ['stone', 'arrow', 'bullet', 'bullet', 'laser'][age];
+}
+function attack(u, s, o, target) {
+  u.atk = 0.25;
+  const d = u.def;
+  const tx = target ? target.x : baseFront(o) + s.dir * 20;
+  if (d.range < 70) {
+    if (d.range > 30) S.fx.push({ kind: 'flash', x: u.x + s.dir * 14, y: GROUND - 20, t: 0.08, max: 0.08 });
+    if (target) hurtUnit(target, d.dmg, s.id); else hurtBase(o, d.dmg, s.id);
+    return;
+  }
+  const kind = shotKind(d.age, d.role === 'heavy' ? 'heavy' : 'ranged');
+  const y0 = d.role === 'heavy' ? GROUND - 26 : GROUND - 24;
+  S.shots.push({ side: s.id, kind, x: u.x + s.dir * 12, y: y0, target, base: !target, tx, ty: target ? GROUND - 18 : GROUND - 40,
+                 speed: kind === 'laser' ? 900 : kind === 'bullet' ? 800 : 420, dmg: d.dmg, splash: d.role === 'heavy' && d.age >= 2 ? 26 : 0, age: d.age });
+  if (kind === 'bullet' || kind === 'cannonball') S.fx.push({ kind: 'flash', x: u.x + s.dir * 16, y: y0, t: 0.07, max: 0.07 });
+}
+
+// ============ Sztuczna inteligencja ============
+function aiThink(s, dt) {
+  s.aiT -= dt;
+  if (s.aiT > 0) return;
+  const react = s.id === 1 ? S.diff.react : 1;
+  s.aiT = 0.7 / react;
+  const o = other(s);
+  if (canEvolve(s)) { evolve(s); return; }
+  const threat = o.units.filter(e => s.dir * (e.x - baseFront(s)) < W * 0.45).length;
+  if (s.specialCd <= 0 && threat >= 4) special(s);
+  const alive = s.units.length + s.queue.length;
+  // odnowienie przestarzałych wież
+  const old = s.turrets.findIndex(t => t && t.age < s.age);
+  if (old >= 0 && s.gold > turretDef(s.age, 1).cost * 1.4) sellTurret(s, old);
+  const free = s.turrets.findIndex((t, i) => i < s.slots && !t);
+  if (free >= 0 && alive >= 3) {
+    const heavy = turretDef(s.age, 1), light = turretDef(s.age, 0);
+    if (s.gold >= heavy.cost + 120 && Math.random() < 0.5) { buyTurret(s, 1); return; }
+    if (s.gold >= light.cost + 80 && Math.random() < 0.5) { buyTurret(s, 0); return; }
+  }
+  if (s.slots < 3 && s.age >= 1 && s.gold > SLOT_COST[s.slots] + 500 && free < 0) { buySlot(s); return; }
+  if (s.queue.length < 3) {
+    const r = Math.random();
+    const heavy = unitDef(s.age, 2);
+    let ri = r < 0.5 ? 0 : 1;
+    if (s.gold >= heavy.cost + 30 && r > 0.72 && threat < 6) ri = 2;
+    if (threat >= 5 && r < 0.7) ri = 0;
+    if (s.age === AGES.length - 1 && s.gold >= TITAN.cost + 100 && r < 0.35) ri = 3;
+    train(s, ri);
+  }
+}
+
+// ============ Rysowanie ============
+function slotPos(s, i) {
+  return { x: s.id === 0 ? 62 : W - 62, y: GROUND - 88 - i * 30 };
+}
+
+function drawSky() {
+  const age = Math.max(S.sides[0].age, S.sides[1].age);
+  const A = AGES[S.sides[0].age];
+  const g = ctx.createLinearGradient(0, 0, 0, GROUND);
+  g.addColorStop(0, A.sky[0]); g.addColorStop(1, A.sky[1]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, GROUND);
+  if (S.sides[0].age === 4) {
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    for (let i = 0; i < 60; i++) { const x = (i * 137.5) % W, y = (i * 71.3) % (GROUND - 120); ctx.fillRect(x, y, 1.5, 1.5); }
+    ctx.fillStyle = '#e8d8ff'; ctx.beginPath(); ctx.arc(820, 70, 26, 0, 7); ctx.fill();
+    ctx.fillStyle = A.sky[0]; ctx.beginPath(); ctx.arc(808, 62, 24, 0, 7); ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(255,245,210,.9)'; ctx.beginPath(); ctx.arc(840, 70, 30, 0, 7); ctx.fill();
+    const t = performance.now() / 1000;
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    for (let i = 0; i < 4; i++) {
+      const x = ((i * 290 + t * (6 + i * 2)) % (W + 200)) - 100, y = 50 + i * 26;
+      ctx.beginPath(); ctx.ellipse(x, y, 46, 12, 0, 0, 7); ctx.ellipse(x + 26, y - 8, 28, 12, 0, 0, 7); ctx.fill();
+    }
+  }
+  // wzgórza
+  for (let layer = 0; layer < 2; layer++) {
+    ctx.fillStyle = A.hills[layer];
+    ctx.beginPath(); ctx.moveTo(0, GROUND);
+    for (let x = 0; x <= W; x += 20) ctx.lineTo(x, GROUND - 60 + layer * 25 - Math.sin(x / (140 - layer * 40) + layer * 2) * (26 - layer * 8) - Math.sin(x / 57) * 6);
+    ctx.lineTo(W, GROUND); ctx.fill();
+  }
+  void age;
+}
+function drawGround() {
+  const A = AGES[S.sides[0].age];
+  ctx.fillStyle = A.ground; ctx.fillRect(0, GROUND, W, H - GROUND);
+  ctx.fillStyle = A.top; ctx.fillRect(0, GROUND, W, 6);
+  ctx.fillStyle = 'rgba(0,0,0,.12)';
+  for (let i = 0; i < 40; i++) ctx.fillRect((i * 97) % W, GROUND + 14 + (i * 13) % 50, 18, 3);
+  // linia środka pola
+  ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.moveTo(W / 2, GROUND + 8); ctx.lineTo(W / 2, H); ctx.stroke(); ctx.setLineDash([]);
+}
+
+function drawBase(s) {
+  const team = s.id === 0 ? '#4d8fd6' : '#d6504d';
+  ctx.save();
+  if (s.id === 1) { ctx.translate(W, 0); ctx.scale(-1, 1); }
+  const x = 0, g = GROUND;
+  switch (s.age) {
+    case 0:
+      ctx.fillStyle = '#8a7058'; ctx.beginPath(); ctx.moveTo(-10, g); ctx.quadraticCurveTo(10, g - 150, 70, g - 130); ctx.quadraticCurveTo(110, g - 110, 100, g); ctx.fill();
+      ctx.fillStyle = '#6d5642'; ctx.beginPath(); ctx.ellipse(40, g - 90, 26, 12, -0.3, 0, 7); ctx.fill();
+      ctx.fillStyle = '#1e1510'; ctx.beginPath(); ctx.moveTo(40, g); ctx.quadraticCurveTo(52, g - 60, 80, g); ctx.fill();
+      ctx.fillStyle = '#ff9a3a'; ctx.beginPath(); ctx.arc(60, g - 8, 5 + Math.sin(performance.now() / 90) * 1.5, 0, 7); ctx.fill();
+      break;
+    case 1:
+      ctx.fillStyle = '#9a927f'; ctx.fillRect(x, g - 120, 96, 120);
+      ctx.fillStyle = '#b0a893'; ctx.fillRect(x + 50, g - 160, 40, 160);
+      for (let i = 0; i < 4; i++) ctx.fillRect(x + 50 + i * 11, g - 170, 7, 10);
+      for (let i = 0; i < 5; i++) ctx.fillRect(x + i * 11, g - 130, 7, 10);
+      ctx.fillStyle = '#3a2a1a'; ctx.beginPath(); ctx.moveTo(62, g); ctx.lineTo(62, g - 34); ctx.arc(75, g - 34, 13, Math.PI, 0); ctx.lineTo(88, g); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.15)'; for (let y = g - 110; y < g; y += 14) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(96, y); ctx.stroke(); }
+      break;
+    case 2:
+      ctx.fillStyle = '#9b5a3c'; ctx.fillRect(x, g - 130, 98, 130);
+      ctx.strokeStyle = 'rgba(0,0,0,.18)';
+      for (let y = g - 126; y < g; y += 10) for (let bx = (y / 10) % 2 ? 0 : 10; bx < 98; bx += 20) ctx.strokeRect(bx, y, 20, 10);
+      ctx.fillStyle = '#6b3e2a'; ctx.fillRect(x, g - 140, 98, 12);
+      ctx.fillStyle = '#e8e0cc'; ctx.fillRect(x + 60, g - 60, 26, 60);
+      ctx.fillStyle = '#2a2018'; ctx.fillRect(x + 64, g - 56, 18, 56);
+      break;
+    case 3:
+      ctx.fillStyle = '#7d817c'; ctx.beginPath(); ctx.moveTo(x, g); ctx.lineTo(x, g - 140); ctx.lineTo(80, g - 140); ctx.lineTo(102, g - 100); ctx.lineTo(102, g); ctx.fill();
+      ctx.fillStyle = '#5d615c'; ctx.fillRect(x, g - 148, 84, 10);
+      ctx.fillStyle = '#1c1e1d'; ctx.fillRect(x + 20, g - 120, 60, 8); ctx.fillRect(x + 62, g - 46, 30, 46);
+      ctx.fillStyle = '#c9b458'; for (let i = 0; i < 5; i++) ctx.fillRect(x + i * 20, g - 12, 10, 6);
+      break;
+    case 4: {
+      const glow = 0.6 + Math.sin(performance.now() / 300) * 0.3;
+      ctx.fillStyle = '#3b3560'; ctx.beginPath(); ctx.moveTo(x, g); ctx.lineTo(x, g - 150); ctx.lineTo(60, g - 180); ctx.lineTo(104, g - 120); ctx.lineTo(104, g); ctx.fill();
+      ctx.strokeStyle = `rgba(197,108,240,${glow})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x + 4, g - 150); ctx.lineTo(60, g - 176); ctx.lineTo(100, g - 120); ctx.stroke();
+      ctx.fillStyle = `rgba(120,230,255,${glow})`; ctx.fillRect(x + 66, g - 60, 26, 60);
+      ctx.lineWidth = 1;
+      break;
+    }
+  }
+  // flaga drużyny
+  const fx = s.age === 0 ? 70 : s.age === 4 ? 60 : 80, fy = s.age === 0 ? g - 132 : s.age === 1 ? g - 170 : s.age === 4 ? g - 180 : g - 150;
+  ctx.fillStyle = '#3a3026'; ctx.fillRect(fx - 1.5, fy - 34, 3, 34);
+  const wv = Math.sin(performance.now() / 260) * 3;
+  ctx.fillStyle = team; ctx.beginPath(); ctx.moveTo(fx + 1.5, fy - 34); ctx.lineTo(fx + 26, fy - 28 + wv); ctx.lineTo(fx + 1.5, fy - 20); ctx.fill();
+  ctx.restore();
+
+  // miejsca na wieże
+  for (let i = 0; i < 3; i++) {
+    const p = slotPos(s, i);
+    if (i >= s.slots) continue;
+    ctx.fillStyle = '#4a4036'; ctx.fillRect(p.x - 14, p.y + 6, 28, 8);
+    const t = s.turrets[i];
+    if (t) drawTurret(t, p, s);
+  }
+  if (s.flash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${s.flash * 0.7})`;
+    ctx.fillRect(s.id === 0 ? 0 : W - 110, GROUND - 200, 110, 200);
+  }
+}
+
+function drawTurret(t, p, s) {
+  ctx.save(); ctx.translate(p.x, p.y);
+  ctx.rotate(t.angle);
+  if (s.id === 1) ctx.scale(1, -1);
+  const col = ['#7a6040', '#6a5a48', '#3a3a3a', '#4a5048', '#6a5aa0'][t.age];
+  ctx.fillStyle = col;
+  if (t.ti === 0) {
+    ctx.fillRect(-6, -4, 24, 8);
+    ctx.fillStyle = t.age === 4 ? '#8ff' : '#222'; ctx.fillRect(16, -2, 6, 4);
+  } else {
+    ctx.fillRect(-8, -7, 28, 14);
+    ctx.fillStyle = t.age === 4 ? '#e59aff' : '#111'; ctx.beginPath(); ctx.arc(20, 0, 5, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+  ctx.fillStyle = '#2c251e'; ctx.beginPath(); ctx.arc(p.x, p.y + 4, 8, Math.PI, 0); ctx.fill();
+}
+
+function drawHumanoid(c, age, role, team, walk, atk, moving) {
+  const skin = '#e0b08a';
+  const sw = moving ? Math.sin(walk * 9) * 5 : 0;
+  // nogi
+  c.strokeStyle = ['#5a3a20', '#4a4a52', '#2a3550', '#4d5a3a', '#cfd8e8'][age]; c.lineWidth = 3; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(0, -12); c.lineTo(sw, 0); c.moveTo(0, -12); c.lineTo(-sw, 0); c.stroke();
+  // tułów
+  c.fillStyle = ['#8a5a30', '#8a8f96', '#2e4a7a', '#5b6b40', '#e8eef8'][age];
+  c.fillRect(-4.5, -25, 9, 14);
+  c.fillStyle = team; c.fillRect(-4.5, -15, 9, 3);
+  // głowa
+  c.fillStyle = age === 4 ? '#cfd8e8' : skin; c.beginPath(); c.arc(0, -30, 5, 0, 7); c.fill();
+  switch (age) {
+    case 0: c.fillStyle = '#3a2412'; c.beginPath(); c.arc(0, -32, 5, Math.PI, 0); c.fill(); break;
+    case 1: c.fillStyle = '#9aa0a8'; c.beginPath(); c.arc(0, -31, 5.6, Math.PI, 0); c.fill(); c.fillRect(-1, -33, 7, 2); break;
+    case 2: c.fillStyle = '#1a1a1a'; c.fillRect(-6, -36, 12, 3); c.fillRect(-3.5, -39, 7, 4); break;
+    case 3: c.fillStyle = '#4d5a3a'; c.beginPath(); c.arc(0, -31, 5.8, Math.PI, 0); c.fill(); break;
+    case 4: c.fillStyle = team === '#4d8fd6' ? '#6fe8ff' : '#ff7a9a'; c.fillRect(0, -32, 6, 3); break;
+  }
+  // broń
+  const swing = atk > 0 ? -1.2 + (0.25 - atk) * 8 : -0.4;
+  c.save(); c.translate(3, -21);
+  if (role === 'melee') {
+    c.rotate(swing + 1.2);
+    switch (age) {
+      case 0: c.fillStyle = '#6a4424'; c.fillRect(0, -2, 16, 4); c.beginPath(); c.arc(16, 0, 4, 0, 7); c.fill(); break;
+      case 1: c.fillStyle = '#d8dde2'; c.fillRect(2, -1.5, 18, 3); c.fillStyle = '#6a4a20'; c.fillRect(0, -4, 3, 8); break;
+      case 2: c.fillStyle = '#e8e8e8'; c.fillRect(2, -0.8, 20, 1.6); c.fillStyle = '#d9b23a'; c.fillRect(0, -3, 2.5, 6); break;
+      case 3: c.rotate(-swing - 1.2); c.fillStyle = '#222'; c.fillRect(0, -2, 16, 4); c.fillRect(-2, 0, 5, 5); break;
+      case 4: c.fillStyle = team === '#4d8fd6' ? '#6fe8ff' : '#ff6a8a'; c.fillRect(2, -1.5, 20, 3); c.fillStyle = '#444'; c.fillRect(0, -2, 4, 4); break;
+    }
+  } else {
+    switch (age) {
+      case 0: c.strokeStyle = '#6a4424'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(2, -4); c.lineTo(8, 0); c.lineTo(2, 4); c.stroke(); c.fillStyle = '#888'; c.beginPath(); c.arc(9, atk > 0 ? -6 : 0, 2.5, 0, 7); c.fill(); break;
+      case 1: c.strokeStyle = '#7a4a22'; c.lineWidth = 2; c.beginPath(); c.arc(4, 0, 9, -1.3, 1.3); c.stroke(); c.strokeStyle = '#ddd'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(6, -8.7); c.lineTo(6, 8.7); c.stroke(); break;
+      case 2: c.fillStyle = '#5a3a1a'; c.fillRect(-4, -1.5, 12, 4); c.fillStyle = '#333'; c.fillRect(6, -1.2, 16, 2.4); break;
+      case 3: c.fillStyle = '#222'; c.fillRect(-2, -2, 20, 4); c.fillRect(4, 1, 3, 5); c.fillRect(10, -4, 4, 2); break;
+      case 4: c.fillStyle = '#cfd8e8'; c.fillRect(-2, -2.5, 16, 5); c.fillStyle = team === '#4d8fd6' ? '#6fe8ff' : '#ff6a8a'; c.fillRect(14, -1.5, 4, 3); break;
+    }
+  }
+  c.restore();
+}
+
+function drawHeavy(c, age, team, walk, atk, moving) {
+  const bob = moving ? Math.sin(walk * 7) * 1.5 : 0;
+  switch (age) {
+    case 0: { // dinozaur z jeźdźcem
+      const lg = moving ? Math.sin(walk * 7) * 5 : 0;
+      c.strokeStyle = '#4c7a34'; c.lineWidth = 5; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(-6, -12); c.lineTo(-6 + lg, 0); c.moveTo(8, -12); c.lineTo(8 - lg, 0); c.stroke();
+      c.fillStyle = '#5f9a40'; c.beginPath(); c.ellipse(0, -20 + bob, 20, 11, 0, 0, 7); c.fill();
+      c.beginPath(); c.moveTo(-18, -22 + bob); c.lineTo(-36, -14 + bob); c.lineTo(-16, -14 + bob); c.fill();
+      c.beginPath(); c.ellipse(20, -34 + bob, 8, 6, 0, 0, 7); c.fill(); c.fillRect(14, -32 + bob, 6, 12);
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(24, -36 + bob, 1.8, 0, 7); c.fill();
+      if (atk > 0) { c.fillStyle = '#a32'; c.fillRect(24, -32 + bob, 6, 2); }
+      c.save(); c.translate(-2, -28 + bob); c.scale(0.8, 0.8); drawHumanoid(c, 0, 'melee', team, 0, atk, false); c.restore();
+      break;
+    }
+    case 1: { // rycerz na koniu
+      const lg = moving ? Math.sin(walk * 8) * 5 : 0;
+      c.strokeStyle = '#5a3a24'; c.lineWidth = 3.5; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(-10, -14); c.lineTo(-10 + lg, 0); c.moveTo(12, -14); c.lineTo(12 - lg, 0); c.stroke();
+      c.fillStyle = '#7a4a2a'; c.beginPath(); c.ellipse(0, -20 + bob, 18, 8, 0, 0, 7); c.fill();
+      c.beginPath(); c.moveTo(12, -24 + bob); c.lineTo(22, -38 + bob); c.lineTo(28, -34 + bob); c.lineTo(18, -18 + bob); c.fill();
+      c.fillStyle = team; c.fillRect(-12, -24 + bob, 18, 5);
+      c.save(); c.translate(0, -26 + bob); drawHumanoid(c, 1, 'melee', team, 0, atk, false); c.restore();
+      c.fillStyle = '#cfd4d8'; c.fillRect(6, -40 + bob + (atk > 0 ? 6 : 0), 26, 2.5);
+      break;
+    }
+    case 2: { // armata polowa
+      c.fillStyle = '#4a3a2a'; c.beginPath(); c.arc(-4, -9, 9, 0, 7); c.fill();
+      c.strokeStyle = '#2a2018'; c.lineWidth = 2; c.beginPath(); c.arc(-4, -9, 9, 0, 7); c.stroke();
+      c.fillStyle = '#2d2d2d'; c.save(); c.translate(-2, -16); c.rotate(-0.15); c.fillRect(-10, -4, 32, 8); c.restore();
+      c.save(); c.translate(-18, 0); c.scale(0.9, 0.9); drawHumanoid(c, 2, 'ranged', team, walk, 0, moving); c.restore();
+      c.fillStyle = team; c.fillRect(-10, -20, 6, 3);
+      break;
+    }
+    case 3: { // czołg
+      c.fillStyle = '#3a3f36'; roundRect(c, -22, -12, 44, 12, 5); c.fill();
+      c.fillStyle = '#222'; for (let i = 0; i < 5; i++) { c.beginPath(); c.arc(-16 + i * 8, -5, 3, 0, 7); c.fill(); }
+      c.fillStyle = '#5b6b40'; c.fillRect(-18, -20, 36, 9);
+      c.fillStyle = '#4d5a36'; roundRect(c, -10, -28, 20, 9, 3); c.fill();
+      c.fillStyle = '#333'; c.fillRect(8, -26 + (atk > 0 ? 0 : 0), 24 - (atk > 0 ? 4 : 0), 4);
+      c.fillStyle = team; c.fillRect(-16, -18, 6, 4);
+      break;
+    }
+    case 4: { // mech
+      const lg = moving ? Math.sin(walk * 6) * 6 : 0;
+      c.strokeStyle = '#9aa6c0'; c.lineWidth = 5; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(-6, -20); c.lineTo(-10 + lg, -8); c.lineTo(-6 + lg, 0); c.moveTo(6, -20); c.lineTo(10 - lg, -8); c.lineTo(6 - lg, 0); c.stroke();
+      c.fillStyle = '#d8def0'; roundRect(c, -14, -44 + bob, 28, 24, 5); c.fill();
+      c.fillStyle = team === '#4d8fd6' ? '#6fe8ff' : '#ff6a8a'; c.fillRect(2, -38 + bob, 10, 4);
+      c.fillStyle = '#6a6f88'; c.fillRect(8, -30 + bob, 22, 6);
+      c.fillStyle = team; c.fillRect(-14, -26 + bob, 28, 3);
+      break;
+    }
+  }
+}
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+}
+
+function drawUnitShape(c, def, team, walk, atk, moving) {
+  if (def.role === 'titan') {
+    c.save(); c.scale(1.9, 1.9);
+    drawHumanoid(c, 4, 'melee', team, walk, atk, moving);
+    c.fillStyle = team; c.beginPath(); c.arc(0, -30, 7.5, Math.PI * 1.1, Math.PI * 1.9); c.fill();
+    c.restore();
+    return;
+  }
+  if (def.role === 'heavy') drawHeavy(c, def.age, team, walk, atk, moving);
+  else drawHumanoid(c, def.age, def.role, team, walk, atk, moving);
+}
+
+function drawUnit(u) {
+  const team = u.side === 0 ? '#4d8fd6' : '#d6504d';
+  ctx.save(); ctx.translate(u.x, GROUND);
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(0, 1, u.def.w * 0.6, 3, 0, 0, 7); ctx.fill();
+  ctx.scale(u.dir, 1);
+  if (u.hit > 0) ctx.filter = 'brightness(2.2)';
+  drawUnitShape(ctx, u.def, team, u.walk, u.atk, u.moving);
+  ctx.filter = 'none';
+  ctx.restore();
+  if (u.hp < u.maxHp) {
+    const w = u.def.role === 'titan' ? 40 : u.def.role === 'heavy' ? 30 : 18, y = GROUND - (u.def.role === 'titan' ? 78 : u.def.role === 'heavy' ? 54 : 44);
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(u.x - w / 2, y, w, 3);
+    ctx.fillStyle = team; ctx.fillRect(u.x - w / 2, y, w * Math.max(0, u.hp / u.maxHp), 3);
+  }
+}
+
+function drawShot(p) {
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a || 0);
+  switch (p.kind) {
+    case 'stone': ctx.fillStyle = '#777'; ctx.beginPath(); ctx.arc(0, 0, 3, 0, 7); ctx.fill(); break;
+    case 'boulder': ctx.fillStyle = '#6a5a4a'; ctx.beginPath(); ctx.arc(0, 0, 6, 0, 7); ctx.fill(); break;
+    case 'arrow': ctx.strokeStyle = '#5a3a1a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(4, 0); ctx.stroke(); ctx.fillStyle = '#ccc'; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(2, -2); ctx.lineTo(2, 2); ctx.fill(); break;
+    case 'bullet': ctx.strokeStyle = 'rgba(255,230,140,.9)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(2, 0); ctx.stroke(); break;
+    case 'cannonball': ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, 7); ctx.fill(); break;
+    case 'rocket': ctx.fillStyle = '#ddd'; ctx.fillRect(-6, -2, 10, 4); ctx.fillStyle = '#ff8a3a'; ctx.beginPath(); ctx.moveTo(-6, -2); ctx.lineTo(-12, 0); ctx.lineTo(-6, 2); ctx.fill(); break;
+    case 'laser': ctx.strokeStyle = p.side === 0 ? '#6fe8ff' : '#ff6a8a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-16, 0); ctx.lineTo(4, 0); ctx.stroke(); break;
+    case 'plasma': ctx.fillStyle = p.side === 0 ? 'rgba(111,232,255,.8)' : 'rgba(255,106,138,.8)'; ctx.beginPath(); ctx.arc(0, 0, 6, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, 7); ctx.fill(); break;
+  }
+  ctx.restore();
+}
+
+function drawDrop(d) {
+  if (d.delay > 0) return;
+  switch (d.age) {
+    case 0:
+      ctx.fillStyle = 'rgba(255,140,40,.5)'; ctx.beginPath(); ctx.ellipse(d.x, d.y - 14, 5, 16, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#5a3a2a'; ctx.beginPath(); ctx.arc(d.x, d.y, 7, 0, 7); ctx.fill(); break;
+    case 1:
+      ctx.strokeStyle = '#4a2a10'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(d.x - 3, d.y - 16); ctx.lineTo(d.x, d.y); ctx.stroke();
+      ctx.fillStyle = '#ccc'; ctx.beginPath(); ctx.moveTo(d.x, d.y + 3); ctx.lineTo(d.x - 2, d.y - 2); ctx.lineTo(d.x + 2, d.y - 2); ctx.fill(); break;
+    case 2: ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(d.x, d.y, 5, 0, 7); ctx.fill(); break;
+    case 3: ctx.fillStyle = '#3a3f36'; ctx.beginPath(); ctx.ellipse(d.x, d.y, 4, 8, 0, 0, 7); ctx.fill(); ctx.fillRect(d.x - 4, d.y - 12, 8, 3); break;
+    case 4:
+      ctx.fillStyle = d.side === 0 ? 'rgba(111,232,255,.35)' : 'rgba(255,106,138,.35)'; ctx.fillRect(d.x - 7, 0, 14, d.y);
+      ctx.fillStyle = '#fff'; ctx.fillRect(d.x - 2, 0, 4, d.y); break;
+  }
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!S) return;
+  if (S.shake > 0) ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4);
+  drawSky();
+  drawGround();
+  for (const s of S.sides) drawBase(s);
+  for (const f of S.fx) if (f.kind === 'corpse') {
+    ctx.save(); ctx.globalAlpha = f.t / f.max * 0.8; ctx.translate(f.x, GROUND); ctx.scale(f.dir, 1); ctx.rotate(-Math.PI / 2 * (1 - f.t / f.max) * 0.9);
+    drawUnitShape(ctx, f.def, f.side === 0 ? '#4d8fd6' : '#d6504d', 0, 0, false); ctx.restore();
+  }
+  const big = u => (u.def.role === 'heavy' || u.def.role === 'titan') ? 1 : 0;
+  const all = [...S.sides[0].units, ...S.sides[1].units].sort((a, b) => big(a) - big(b));
+  for (const u of all) drawUnit(u);
+  for (const p of S.shots) drawShot(p);
+  for (const d of S.drops) drawDrop(d);
+  for (const f of S.fx) {
+    const a = Math.max(0, f.t / f.max);
+    if (f.kind === 'spark') { ctx.globalAlpha = a; ctx.fillStyle = f.color; ctx.fillRect(f.x - 1.5, f.y - 1.5, 3, 3); }
+    else if (f.kind === 'boom') {
+      ctx.globalAlpha = a; ctx.fillStyle = 'rgba(255,170,60,.6)'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.1 - a * 0.5), 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,240,180,.8)'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.4 * a, 0, 7); ctx.fill();
+    } else if (f.kind === 'flash') { ctx.globalAlpha = a; ctx.fillStyle = '#fff3b0'; ctx.beginPath(); ctx.arc(f.x, f.y, 5, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
+  // paski życia baz
+  for (const s of S.sides) {
+    const w = 210, x = s.id === 0 ? 12 : W - 12 - w, y = 12;
+    ctx.fillStyle = 'rgba(20,17,14,.7)'; roundRect(ctx, x - 4, y - 4, w + 8, 34, 6); ctx.fill();
+    ctx.fillStyle = '#3a332b'; ctx.fillRect(x, y + 16, w, 9);
+    ctx.fillStyle = s.id === 0 ? '#4d8fd6' : '#d6504d';
+    const f = s.baseHp / s.baseMax;
+    if (s.id === 0) ctx.fillRect(x, y + 16, w * f, 9); else ctx.fillRect(x + w * (1 - f), y + 16, w * f, 9);
+    ctx.fillStyle = '#f1e9dc'; ctx.font = '600 12px "Barlow", system-ui, sans-serif';
+    ctx.textAlign = s.id === 0 ? 'left' : 'right';
+    ctx.fillText(`${s.id === 0 ? 'Twoja baza' : 'Baza wroga'} · ${AGES[s.age].name} · ${Math.ceil(s.baseHp)}/${s.baseMax}`, s.id === 0 ? x : x + w, y + 10);
+  }
+  ctx.textAlign = 'center'; ctx.font = '700 13px "Barlow", system-ui, sans-serif';
+  for (const t of S.texts) {
+    ctx.globalAlpha = Math.min(1, t.t * 2);
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(t.text, t.x + 1, t.y + 1);
+    ctx.fillStyle = t.color; ctx.fillText(t.text, t.x, t.y);
+  }
+  ctx.globalAlpha = 1;
+  if (paused && running && !S.over) {
+    ctx.fillStyle = 'rgba(20,17,14,.45)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#f1e9dc'; ctx.font = '40px "Bungee", Impact, sans-serif'; ctx.fillText('PAUZA', W / 2, H / 2);
+  }
+}
+
+function floatText(x, y, text, color) { S.texts.push({ x, y, text, color, t: 1 }); }
+
+// ============ Interfejs ============
+function toast(msg) {
+  const el = $('toast'); el.textContent = msg; el.style.opacity = '1';
+  clearTimeout(toast._t); toast._t = setTimeout(() => { el.style.opacity = '0'; }, 1800);
+}
+function applyAccent() { document.documentElement.style.setProperty('--accent', AGES[S ? S.sides[0].age : 0].accent); }
+
+function iconFor(def, isTurret) {
+  const c = document.createElement('canvas'); c.width = 80; c.height = 80;
+  const g = c.getContext('2d'); g.scale(2, 2);
+  if (isTurret) {
+    g.translate(14, 24); g.rotate(-0.3);
+    g.fillStyle = ['#7a6040', '#6a5a48', '#3a3a3a', '#4a5048', '#6a5aa0'][def.age];
+    if (def.ti === 0) g.fillRect(-6, -4, 26, 8); else g.fillRect(-8, -7, 30, 14);
+  } else {
+    g.translate(def.role === 'heavy' ? 22 : 20, 36);
+    const sc = def.role === 'heavy' ? 0.62 : def.role === 'titan' ? 0.5 : 0.9; g.scale(sc, sc);
+    drawUnitShape(g, def, '#4d8fd6', 0, 0, false);
+  }
+  return c;
+}
+
+function buildButtons() {
+  const me = S.sides[0];
+  const ub = $('unitBtns'); ub.innerHTML = '';
+  for (let ri = 0; ri < unitCount(me.age); ri++) {
+    const d = unitDef(me.age, ri);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ubtn'; b.id = 'unit-' + ri; b.dataset.cost = d.cost;
+    b.append(iconFor(d, false));
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = d.name;
+    const cost = document.createElement('span'); cost.className = 'cost'; cost.innerHTML = `${d.cost} zł <kbd>${ri === 3 ? 6 : ri + 1}</kbd>`;
+    const sub = document.createElement('span'); sub.className = 'sub'; sub.textContent = `Życie ${d.hp} · Atak ${Math.round(d.dmg)}${d.range > 60 ? ' · dystans' : ''}`;
+    b.append(nm, cost, sub);
+    b.onclick = () => train(me, ri);
+    ub.appendChild(b);
+  }
+  const tb = $('turretBtns'); tb.innerHTML = '';
+  for (let ti = 0; ti < 2; ti++) {
+    const d = turretDef(me.age, ti);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ubtn'; b.id = 'turret-' + ti; b.dataset.cost = d.cost;
+    b.append(iconFor(d, true));
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = d.name;
+    const cost = document.createElement('span'); cost.className = 'cost'; cost.innerHTML = `${d.cost} zł <kbd>${ti + 4}</kbd>`;
+    const sub = document.createElement('span'); sub.className = 'sub'; sub.textContent = `Atak ${Math.round(d.dmg)}${d.splash ? ' · obszar' : ' · szybka'}`;
+    b.append(nm, cost, sub);
+    b.onclick = () => buyTurret(me, ti);
+    tb.appendChild(b);
+  }
+  $('specialName').textContent = AGES[me.age].special;
+  $('ageName').textContent = AGES[me.age].name;
+}
+
+let refreshQueued = false;
+function refreshSoon() { refreshQueued = true; }
+function refresh() {
+  if (!S) return;
+  const me = S.sides[0];
+  $('sGold').textContent = Math.floor(me.gold);
+  const need = XP_NEXT[me.age];
+  $('xpFill').style.width = need ? `${Math.min(100, me.xp / need * 100)}%` : '100%';
+  $('xpLabel').textContent = need ? `Doświadczenie ${Math.floor(me.xp)}/${need}` : `Doświadczenie ${Math.floor(me.xp)} · ostatnia epoka`;
+  document.querySelectorAll('.ubtn').forEach(b => b.classList.toggle('poor', me.gold < +b.dataset.cost));
+  const q = $('queue'); q.innerHTML = '';
+  for (let i = 0; i < 5; i++) {
+    const d = me.queue[i];
+    const el = document.createElement('span'); el.className = 'qslot' + (d ? ' full' : ''); el.title = d ? d.name : 'Wolne miejsce';
+    if (i === 0 && d) { const p = document.createElement('span'); p.className = 'p'; p.style.height = `${(1 - Math.max(0, me.trainT) / d.train) * 100}%`; el.appendChild(p); }
+    q.appendChild(el);
+  }
+  $('queueInfo').textContent = me.queue.length ? `Szkolenie: ${me.queue[0].name}` : 'Kolejka pusta';
+  const used = me.turrets.filter(Boolean).length;
+  $('slotInfo').textContent = `Miejsca ${used}/${me.slots}`;
+  const bs = $('btnSlot');
+  bs.disabled = me.slots >= 3 || me.gold < SLOT_COST[me.slots];
+  bs.textContent = me.slots >= 3 ? 'Wszystkie miejsca' : `Nowe miejsce · ${SLOT_COST[me.slots]} zł`;
+  $('btnSell').disabled = used === 0;
+  const sp = $('btnSpecial');
+  sp.disabled = me.specialCd > 0 || !running;
+  $('specialCd').style.width = `${(1 - me.specialCd / SPECIAL_CD) * 100}%`;
+  const ev = $('btnEvolve');
+  ev.disabled = !canEvolve(me);
+  ev.firstChild.textContent = me.age >= AGES.length - 1 ? 'Ostatnia epoka ' : `Ewolucja: ${AGES[me.age + 1].name} `;
+  refreshQueued = false;
+}
+
+function endGame(winnerId) {
+  S.over = true; S.winner = winnerId;
+  const me = S.sides[0];
+  const won = winnerId === 0;
+  const mins = Math.floor(S.t / 60), secs = Math.floor(S.t % 60);
+  $('overlay').hidden = false;
+  $('overlay').innerHTML = `<div class="card">
+    <h2>${won ? 'Zwycięstwo!' : 'Baza zburzona'}</h2>
+    <p>${won ? 'Baza wroga legła w gruzach.' : 'Wróg zburzył twoją bazę.'} Czas bitwy: ${mins} min ${secs} s. Pokonani wrogowie: ${me.kills}. Twoja epoka: ${AGES[me.age].name}, epoka wroga: ${AGES[S.sides[1].age].name}.</p>
+    <div class="row"><button class="primary" id="btnAgain" type="button">Nowa bitwa</button></div></div>`;
+  $('btnAgain').onclick = showStart;
+}
+
+function showStart() {
+  running = false;
+  newGame();
+  $('overlay').hidden = false;
+  $('overlay').innerHTML = startHTML;
+  $('agesLine').innerHTML = AGES.map(a => `<span style="background:${a.accent}">${a.name}</span>`).join('');
+  const dc = $('diffs'); dc.innerHTML = '';
+  DIFFS.forEach((d, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'diff-' + d.id; b.className = i === diffIdx ? 'on' : '';
+    b.innerHTML = `${d.name}<small>${d.desc}</small>`;
+    b.onclick = () => { diffIdx = i; showStart(); };
+    dc.appendChild(b);
+  });
+  $('btnStart').onclick = () => { newGame(); $('overlay').hidden = true; running = true; toast('Wyszkol pierwszych wojowników'); };
+}
+
+// ============ Pętla ============
+let last = performance.now(), uiT = 0;
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (running && !paused && S && !S.over) for (let i = 0; i < speed; i++) update(dt);
+  draw();
+  uiT += dt;
+  if (uiT > 0.12 || refreshQueued) { uiT = 0; refresh(); }
+  requestAnimationFrame(loop);
+}
+
+function togglePause() { if (!running) return; paused = !paused; $('btnPause').classList.toggle('on', paused); $('btnPause').firstChild.textContent = paused ? 'Wznów ' : 'Pauza '; }
+function cycleSpeed() { speed = speed === 1 ? 2 : speed === 2 ? 3 : 1; $('btnSpeed').textContent = `Tempo ×${speed}`; $('btnSpeed').classList.toggle('on', speed > 1); }
+$('btnPause').onclick = togglePause;
+$('btnSpeed').onclick = cycleSpeed;
+$('btnSlot').onclick = () => buySlot(S.sides[0]);
+$('btnSell').onclick = () => sellTurret(S.sides[0]);
+$('btnSpecial').onclick = () => { if (running) special(S.sides[0]); };
+$('btnEvolve').onclick = () => { if (running) evolve(S.sides[0]); };
+document.addEventListener('keydown', ev => {
+  if (!running || !S || S.over || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const k = ev.key.toLowerCase(), me = S.sides[0];
+  if (k === '1' || k === '2' || k === '3') train(me, +k - 1);
+  else if (k === '6' && me.age === AGES.length - 1) train(me, 3);
+  else if (k === '4' || k === '5') buyTurret(me, +k - 4);
+  else if (k === 'q') special(me);
+  else if (k === 'e') evolve(me);
+  else if (k === 'p') togglePause();
+  else if (k === 'f') cycleSpeed();
+});
+
+function resize() {
+  const n = Math.min(2, window.devicePixelRatio || 1);
+  if (n !== dpr || canvas.width !== W * n) { dpr = n; canvas.width = W * n; canvas.height = H * n; }
+}
+window.addEventListener('resize', resize);
+
+const startHTML = $('overlay').innerHTML;
+resize();
+showStart();
+requestAnimationFrame(loop);
+
+// Uchwyt testowy
+window.__war = { get S() { return S; }, newGame, update, train, buyTurret, special, evolve, start() { $('btnStart').click(); } };
+})();
+</script>
+
+</body>
+</html>
